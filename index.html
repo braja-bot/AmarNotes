@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amar Notes - Smart PDF Notes Maker</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- PDF Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        violet: { 50: '#f5f3ff', 100: '#ede9fe', 200: '#ddd6fe', 300: '#c4b5fd', 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9', 800: '#5b21b6', 900: '#4c1d95', 950: '#2e1065' },
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-out',
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, Component, useRef } = React;
+
+        // --- ICON COMPONENTS (Inline for portability) ---
+        const IconBase = ({ size = 24, className = "", children }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
+        );
+        const Upload = (p) => <IconBase {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></IconBase>;
+        const Layers = (p) => <IconBase {...p}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></IconBase>;
+        const Sliders = (p) => <IconBase {...p}><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></IconBase>;
+        const Layout = (p) => <IconBase {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></IconBase>;
+        const RefreshCw = (p) => <IconBase {...p}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></IconBase>;
+        const Download = (p) => <IconBase {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></IconBase>;
+        const Check = (p) => <IconBase {...p}><polyline points="20 6 9 17 4 12"/></IconBase>;
+        const X = (p) => <IconBase {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>;
+        const Moon = (p) => <IconBase {...p}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></IconBase>;
+        const Sun = (p) => <IconBase {...p}><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></IconBase>;
+        const ImageIcon = (p) => <IconBase {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></IconBase>;
+        const Crop = (p) => <IconBase {...p}><path d="M6.13 1L6 16a2 2 0 0 0 2 2h15"/><path d="M1 6.13L16 6a2 2 0 0 1 2 2v15"/></IconBase>;
+        const ChevronRight = (p) => <IconBase {...p}><polyline points="9 18 15 12 9 6"/></IconBase>;
+        const Printer = (p) => <IconBase {...p}><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></IconBase>;
+        const AlertTriangle = (p) => <IconBase {...p}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></IconBase>;
+
+        // --- CONSTANTS ---
+        const STEPS = [
+            { id: 1, label: "Upload", icon: Upload },
+            { id: 2, label: "Select", icon: Layers },
+            { id: 3, label: "Enhance", icon: Sliders },
+            { id: 4, label: "Layout", icon: Layout },
+            { id: 5, label: "Process", icon: RefreshCw },
+            { id: 6, label: "Finish", icon: Download },
+        ];
+
+        const A4_WIDTH_LANDSCAPE = 297; 
+        const A4_HEIGHT_LANDSCAPE = 210;
+        const A4_WIDTH_PORTRAIT = 210;
+        const A4_HEIGHT_PORTRAIT = 297;
+
+        const PDFJS_WORKER_URL = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+        // --- UTILS ---
+        
+        // 1. Smart Crop Algorithm
+        const detectContentBoundingBox = (ctx, width, height) => {
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const data = imgData.data;
+            let minX = width, minY = height, maxX = 0, maxY = 0;
+            let foundContent = false;
+            const stride = 5; 
+
+            for (let y = 0; y < height; y += stride) {
+                for (let x = 0; x < width; x += stride) {
+                    const i = (y * width + x) * 4;
+                    // Lightness detection: If pixel is NOT white/very light, it's content
+                    if (data[i] < 245 || data[i+1] < 245 || data[i+2] < 245) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                        foundContent = true;
+                    }
+                }
+            }
+
+            if (!foundContent) return null;
+            const padding = 15; 
+            return {
+                x: Math.max(0, minX - padding),
+                y: Math.max(0, minY - padding),
+                w: Math.min(width - minX + padding, (maxX - minX) + (padding * 2)),
+                h: Math.min(height - minY + padding, (maxY - minY) + (padding * 2))
+            };
+        };
+
+        // 2. High Quality Image Processing
+        const processImageFilters = (ctx, width, height, filters) => {
+            const imgData = ctx.getImageData(0, 0, width, height);
+            const data = imgData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                let r = data[i];
+                let g = data[i + 1];
+                let b = data[i + 2];
+                
+                // Smart Invert (Dark Mode Fix)
+                if (filters.invert) {
+                    r = 255 - r;
+                    g = 255 - g;
+                    b = 255 - b;
+                    // Auto Leveling: Force muddy grays to white/black
+                    if (r > 230 && g > 230 && b > 230) { r = 255; g = 255; b = 255; }
+                    else if (r < 50 && g < 50 && b < 50) { r = 0; g = 0; b = 0; }
+                }
+
+                // Grayscale
+                if (filters.grayscale) {
+                    const avg = 0.299 * r + 0.587 * g + 0.114 * b;
+                    r = avg; g = avg; b = avg;
+                }
+
+                // High Contrast (Gamma Correction)
+                if (filters.highContrast) {
+                    let nr = r / 255; let ng = g / 255; let nb = b / 255;
+                    nr = Math.pow(nr, 1.2); ng = Math.pow(ng, 1.2); nb = Math.pow(nb, 1.2);
+                    r = nr * 255; g = ng * 255; b = nb * 255;
+                }
+                
+                // Remove Background
+                if (filters.removeBg) {
+                    if (r > 210 && g > 210 && b > 210) { r = 255; g = 255; b = 255; }
+                }
+
+                data[i] = r; data[i + 1] = g; data[i + 2] = b;
+            }
+            ctx.putImageData(imgData, 0, 0);
+        };
+
+        // --- COMPONENTS ---
+
+        const StepIndicator = ({ currentStep }) => (
+            <div className="w-full max-w-4xl mx-auto mb-8 px-4">
+                <div className="flex items-center justify-between relative">
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 w-full h-1 bg-slate-800 -z-10 rounded"></div>
+                    <div className="absolute left-0 top-1/2 transform -translate-y-1/2 h-1 bg-violet-600 -z-10 transition-all duration-500 rounded" style={{ width: `${((currentStep - 1) / (STEPS.length - 1)) * 100}%` }}></div>
+                    {STEPS.map((step) => {
+                        const Icon = step.icon;
+                        const isActive = step.id <= currentStep;
+                        return (
+                            <div key={step.id} className="flex flex-col items-center gap-2">
+                                <div className={`w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-300 border-2 z-10 ${isActive ? 'bg-violet-600 border-violet-600 text-white scale-110 shadow-lg shadow-violet-500/50' : 'bg-slate-900 border-slate-700 text-slate-500'}`}>
+                                    <Icon size={16} className={step.id === currentStep ? "animate-pulse" : ""} />
+                                </div>
+                                <span className={`text-[10px] md:text-xs font-medium uppercase tracking-wider ${step.id === currentStep ? 'text-violet-400' : 'text-slate-500'} hidden sm:block`}>{step.label}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+            </div>
+        );
+
+        const FilterCard = ({ label, desc, icon: Icon, active, onClick, colorClass, badge }) => (
+            <div onClick={onClick} className={`relative p-5 rounded-2xl border cursor-pointer transition-all duration-300 flex items-start gap-4 overflow-hidden group ${active ? `bg-slate-800 border-${colorClass}-500 shadow-lg shadow-${colorClass}-900/20` : 'bg-slate-900/50 border-slate-700 hover:bg-slate-800 hover:border-slate-600'}`}>
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors shrink-0 ${active ? `bg-${colorClass}-500/20 text-${colorClass}-400` : 'bg-slate-800 text-slate-500'}`}>
+                    <Icon size={24} />
+                </div>
+                <div className="flex-1">
+                    <div className="flex justify-between items-center mb-1">
+                        <h4 className={`font-semibold ${active ? 'text-white' : 'text-slate-300'}`}>
+                            {label} {badge && <span className="ml-2 text-[10px] bg-violet-600 text-white px-2 py-0.5 rounded-full">{badge}</span>}
+                        </h4>
+                        {active && <div className={`w-3 h-3 rounded-full bg-${colorClass}-500 shadow-[0_0_8px_currentColor]`} />}
+                    </div>
+                    <p className="text-xs text-slate-500 leading-relaxed">{desc}</p>
+                </div>
+                {active && <div className={`absolute -right-10 -bottom-10 w-32 h-32 bg-${colorClass}-500/10 blur-3xl rounded-full`} />}
+            </div>
+        );
+
+        const LayoutOption = ({ rows, cols, label, currentLayout, onSelect }) => {
+            const isActive = currentLayout.rows === rows && currentLayout.cols === cols;
+            return (
+                <button onClick={() => onSelect({ ...currentLayout, rows, cols })} className={`relative p-4 rounded-2xl border transition-all duration-200 flex flex-col items-center gap-3 group ${isActive ? 'bg-violet-600/10 border-violet-500' : 'bg-slate-900 border-slate-800 hover:border-slate-600'}`}>
+                    <div className={`w-16 h-20 grid gap-1 p-1 rounded border ${isActive ? 'bg-violet-900/20 border-violet-500/30' : 'bg-slate-800 border-slate-700'}`} style={{ gridTemplateColumns: `repeat(${cols}, 1fr)`, gridTemplateRows: `repeat(${rows}, 1fr)` }}>
+                        {Array.from({ length: rows * cols }).map((_, i) => (<div key={i} className={`rounded-sm ${isActive ? 'bg-violet-500/40' : 'bg-slate-600/40'}`} />))}
+                    </div>
+                    <span className={`text-sm font-medium ${isActive ? 'text-violet-400' : 'text-slate-400 group-hover:text-slate-300'}`}>{label}</span>
+                    {isActive && <div className="absolute top-3 right-3 w-4 h-4 bg-violet-500 rounded-full shadow-lg shadow-violet-500/50" />}
+                </button>
+            );
+        };
+
+        // --- MAIN APP ---
+        function AmarNotes() {
+            const [libsLoaded, setLibsLoaded] = useState(false);
+            const [currentStep, setCurrentStep] = useState(1);
+            const [pdfDoc, setPdfDoc] = useState(null);
+            const [pages, setPages] = useState([]); 
+            const [processingProgress, setProcessingProgress] = useState({ current: 0, total: 0, status: '' });
+            const [finalPdfUrl, setFinalPdfUrl] = useState(null);
+            const [finalMeta, setFinalMeta] = useState({ pages: 0, size: 0 });
+            const [generationStatus, setGenerationStatus] = useState("");
+
+            const [filters, setFilters] = useState({ invert: false, grayscale: false, highContrast: false, removeBg: false, smartCrop: false });
+            const [layout, setLayout] = useState({ rows: 2, cols: 2, showLines: true, showPageNums: true, orientation: 'landscape', gap: 4 });
+
+            useEffect(() => {
+                // Initialize Worker
+                if (window.pdfjsLib) {
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+                    setLibsLoaded(true);
+                } else {
+                    // Poll if script loads late
+                    const interval = setInterval(() => {
+                        if (window.pdfjsLib) {
+                            window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER_URL;
+                            setLibsLoaded(true);
+                            clearInterval(interval);
+                        }
+                    }, 500);
+                }
+            }, []);
+
+            // --- Handlers ---
+            const handleFileUpload = async (e) => {
+                const uploadedFile = e.target.files[0];
+                if (uploadedFile && uploadedFile.type === 'application/pdf') {
+                    setProcessingProgress({ current: 0, total: 100, status: 'Parsing PDF...' });
+                    try {
+                        const arrayBuffer = await uploadedFile.arrayBuffer();
+                        const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer });
+                        const doc = await loadingTask.promise;
+                        setPdfDoc(doc);
+                        
+                        const pageMap = Array.from({ length: doc.numPages }, (_, i) => ({ index: i + 1, selected: true, previewUrl: null }));
+                        setPages(pageMap);
+                        setCurrentStep(2);
+                        generateThumbnails(doc, pageMap);
+                    } catch (err) {
+                        alert("Failed to load PDF. It might be password protected.");
+                        console.error(err);
+                    }
+                }
+            };
+
+            const generateThumbnails = async (doc, pageMap) => {
+                const newPages = [...pageMap];
+                setGenerationStatus("Generating Previews...");
+                for (let i = 0; i < doc.numPages; i++) {
+                    try {
+                        const page = await doc.getPage(i + 1);
+                        const viewport = page.getViewport({ scale: 0.2 }); 
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.height = viewport.height; canvas.width = viewport.width;
+                        await page.render({ canvasContext: context, viewport: viewport }).promise;
+                        newPages[i].previewUrl = canvas.toDataURL();
+                        canvas.width = 0; canvas.height = 0; // GC
+                        if (i % 5 === 0) {
+                            setPages([...newPages]);
+                            await new Promise(r => setTimeout(r, 0));
+                        }
+                    } catch (e) { console.warn(e); }
+                }
+                setPages([...newPages]);
+                setGenerationStatus("");
+            };
+
+            const executeProcessing = async () => {
+                setCurrentStep(5);
+                await new Promise(r => setTimeout(r, 100));
+
+                try {
+                    const selectedPages = pages.filter(p => p.selected);
+                    const totalSelected = selectedPages.length;
+                    const { jsPDF } = window.jspdf;
+                    const doc = new jsPDF({ orientation: layout.orientation, unit: 'mm', format: 'a4' });
+
+                    const isLandscape = layout.orientation === 'landscape';
+                    const pageWidth = isLandscape ? A4_WIDTH_LANDSCAPE : A4_WIDTH_PORTRAIT;
+                    const pageHeight = isLandscape ? A4_HEIGHT_LANDSCAPE : A4_HEIGHT_PORTRAIT;
+                    const margin = 10; const gap = layout.gap;
+                    const effectiveWidth = pageWidth - (margin * 2); const effectiveHeight = pageHeight - (margin * 2);
+                    const cellWidth = (effectiveWidth - (gap * (layout.cols - 1))) / layout.cols;
+                    const cellHeight = (effectiveHeight - (gap * (layout.rows - 1))) / layout.rows;
+
+                    let itemsOnPage = 0;
+
+                    for (let i = 0; i < totalSelected; i++) {
+                        const pageObj = selectedPages[i];
+                        setProcessingProgress({ current: i + 1, total: totalSelected, status: `Enhancing Page ${pageObj.index}...` });
+
+                        const pdfPage = await pdfDoc.getPage(pageObj.index);
+                        // ULTRA QUALITY SCALE: 3.0
+                        const viewport = pdfPage.getViewport({ scale: 3.0 });
+                        const canvas = document.createElement('canvas');
+                        canvas.width = viewport.width; canvas.height = viewport.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+                        await pdfPage.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+                        processImageFilters(ctx, canvas.width, canvas.height, filters);
+
+                        let finalCanvas = canvas;
+                        let finalX = 0, finalY = 0, finalW = canvas.width, finalH = canvas.height;
+
+                        if (filters.smartCrop) {
+                            const bbox = detectContentBoundingBox(ctx, canvas.width, canvas.height);
+                            if (bbox) { finalX = bbox.x; finalY = bbox.y; finalW = bbox.w; finalH = bbox.h; }
+                        }
+
+                        const tempCanvas = document.createElement('canvas');
+                        tempCanvas.width = finalW; tempCanvas.height = finalH;
+                        const tempCtx = tempCanvas.getContext('2d');
+                        tempCtx.imageSmoothingEnabled = true; tempCtx.imageSmoothingQuality = 'high';
+                        tempCtx.drawImage(canvas, finalX, finalY, finalW, finalH, 0, 0, finalW, finalH);
+
+                        // MAX QUALITY JPEG (1.0)
+                        const imgData = tempCanvas.toDataURL('image/jpeg', 1.0);
+
+                        const col = itemsOnPage % layout.cols;
+                        const row = Math.floor(itemsOnPage / layout.cols);
+                        const cellX = margin + (col * (cellWidth + gap));
+                        const cellY = margin + (row * (cellHeight + gap));
+
+                        const imgRatio = finalW / finalH;
+                        const cellRatio = cellWidth / cellHeight;
+                        let pdfW, pdfH, offsetX, offsetY;
+
+                        if (imgRatio > cellRatio) {
+                            pdfW = cellWidth; pdfH = cellWidth / imgRatio; offsetX = 0; offsetY = (cellHeight - pdfH) / 2;
+                        } else {
+                            pdfH = cellHeight; pdfW = cellHeight * imgRatio; offsetX = (cellWidth - pdfW) / 2; offsetY = 0;
+                        }
+
+                        doc.addImage(imgData, 'JPEG', cellX + offsetX, cellY + offsetY, pdfW, pdfH);
+                        
+                        if (layout.showLines) {
+                            doc.setDrawColor(200, 200, 200); doc.setLineWidth(0.1); doc.rect(cellX, cellY, cellWidth, cellHeight);
+                        }
+
+                        canvas.width = 0; canvas.height = 0; tempCanvas.width = 0; tempCanvas.height = 0;
+                        itemsOnPage++;
+                        if (itemsOnPage >= (layout.rows * layout.cols)) {
+                            if (i < totalSelected - 1) { doc.addPage(); itemsOnPage = 0; }
+                        }
+                        if (i % 2 === 0) await new Promise(r => setTimeout(r, 0));
+                    }
+
+                    if (layout.showPageNums) {
+                        const totalPdfPages = doc.internal.getNumberOfPages();
+                        doc.setFontSize(9); doc.setTextColor(100);
+                        for (let j = 1; j <= totalPdfPages; j++) {
+                            doc.setPage(j); doc.text(`Page ${j} of ${totalPdfPages} • Amar Notes`, pageWidth / 2, pageHeight - 5, { align: 'center' });
+                        }
+                    }
+
+                    const pdfBlob = doc.output('blob');
+                    setFinalPdfUrl(URL.createObjectURL(pdfBlob));
+                    setFinalMeta({ pages: doc.internal.getNumberOfPages(), size: (pdfBlob.size / 1024 / 1024).toFixed(2) });
+                    setCurrentStep(6);
+                } catch (err) {
+                    console.error(err);
+                    setProcessingProgress({ current: 0, total: 0, status: 'Error generating PDF. Try fewer pages.' });
+                }
+            };
+
+            // --- Render Logic ---
+            return (
+                <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-violet-500/30 pb-20">
+                    <nav className="border-b border-slate-900 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50">
+                        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-violet-900/20">AN</div>
+                                <span className="font-bold text-xl tracking-tight text-white hidden sm:inline">Amar Notes</span>
+                            </div>
+                            <div className="text-xs font-semibold text-slate-500 uppercase">No Login • Private • Fast</div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+                        <StepIndicator currentStep={currentStep} />
+                        
+                        <div className="min-h-[600px] mt-8">
+                            {currentStep === 1 && renderUpload(libsLoaded, handleFileUpload)}
+                            {currentStep === 2 && renderSelect(pages, setPages, setCurrentStep, generationStatus)}
+                            {currentStep === 3 && renderEnhance(pages, filters, setFilters, setCurrentStep)}
+                            {currentStep === 4 && renderLayout(layout, setLayout, executeProcessing)}
+                            {currentStep === 5 && renderProcessing(processingProgress)}
+                            {currentStep === 6 && renderFinish(finalPdfUrl, finalMeta)}
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        // --- Render Helpers (Hoisted to avoid clutter) ---
+        const renderUpload = (libsLoaded, handleFileUpload) => (
+            <div className="flex flex-col items-center justify-center min-h-[400px] border-2 border-dashed border-slate-700 rounded-3xl bg-slate-900/50 hover:bg-slate-800/80 transition-all cursor-pointer relative overflow-hidden group shadow-2xl">
+                <input type="file" accept=".pdf" onChange={handleFileUpload} disabled={!libsLoaded} className="absolute inset-0 opacity-0 cursor-pointer z-20"/>
+                <div className="z-10 flex flex-col items-center gap-6 group-hover:scale-105 transition-transform duration-300">
+                    <div className="w-24 h-24 bg-violet-600/20 rounded-full flex items-center justify-center text-violet-400">
+                        {libsLoaded ? <Upload size={48} strokeWidth={1.5} /> : <RefreshCw size={48} className="animate-spin opacity-50"/>}
+                    </div>
+                    <div className="text-center">
+                        <h3 className="text-2xl font-bold text-white mb-2">{libsLoaded ? "Upload Lecture PDF" : "Loading Engine..."}</h3>
+                        <p className="text-slate-400 text-sm max-w-xs mx-auto">Drag & drop your slides here.</p>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const renderSelect = (pages, setPages, setCurrentStep, generationStatus) => {
+            const togglePage = (index) => {
+                const newPages = [...pages];
+                newPages[index].selected = !newPages[index].selected;
+                setPages(newPages);
+            };
+            return (
+                <div className="space-y-6 animate-in fade-in">
+                    <div className="flex flex-col sm:flex-row justify-between items-center bg-slate-800/80 p-5 rounded-2xl border border-slate-700/50 backdrop-blur-sm sticky top-20 z-40 shadow-xl">
+                        <div>
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2"><Layers size={18} className="text-violet-400" />Select Pages</h3>
+                            <p className="text-sm text-slate-400 mt-1"><span className="text-white font-mono">{pages.filter(p => p.selected).length}</span> selected {generationStatus && <span className="ml-2 text-violet-400 animate-pulse text-xs">({generationStatus})</span>}</p>
+                        </div>
+                        <button onClick={() => setCurrentStep(3)} className="bg-violet-600 hover:bg-violet-700 text-white px-8 py-3 rounded-xl font-semibold flex items-center gap-2 shadow-lg">Next: Enhance <ChevronRight size={18} /></button>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pb-20">
+                        {pages.map((page, idx) => (
+                            <div key={idx} onClick={() => togglePage(idx)} className={`relative aspect-[3/4] rounded-xl overflow-hidden cursor-pointer transition-all duration-200 group ${page.selected ? 'ring-2 ring-violet-500 shadow-lg' : 'opacity-60 grayscale'}`}>
+                                <div className="absolute inset-0 bg-slate-900">{page.previewUrl ? <img src={page.previewUrl} className="w-full h-full object-contain" /> : <div className="w-full h-full bg-slate-800 flex items-center justify-center"><RefreshCw className="animate-spin text-slate-600"/></div>}</div>
+                                <div className={`absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center ${page.selected ? 'bg-violet-600 text-white' : 'bg-slate-700 text-slate-400'}`}>{page.selected ? <Check size={14} strokeWidth={3} /> : <X size={14} />}</div>
+                                <div className="absolute bottom-0 inset-x-0 bg-black/60 p-1 text-center"><span className="text-[10px] text-white">Page {page.index}</span></div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
+        const renderEnhance = (pages, filters, setFilters, setCurrentStep) => (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in">
+                <div className="lg:col-span-5 space-y-4">
+                    <h3 className="text-2xl font-bold text-white mb-6">Enhance Visibility</h3>
+                    <FilterCard label="Auto Crop & Zoom" badge="AI SMART" desc="Removes empty white borders and zooms in." icon={Crop} active={filters.smartCrop} onClick={() => setFilters({...filters, smartCrop: !filters.smartCrop})} colorClass="violet" />
+                    <FilterCard label="Smart Invert" desc="Converts dark backgrounds to white." icon={Moon} active={filters.invert} onClick={() => setFilters({...filters, invert: !filters.invert})} colorClass="indigo" />
+                    <FilterCard label="Grayscale" desc="Save color ink. Best for text-only slides." icon={RefreshCw} active={filters.grayscale} onClick={() => setFilters({...filters, grayscale: !filters.grayscale})} colorClass="emerald" />
+                    <FilterCard label="High Contrast" desc="Sharpen blurry text." icon={Sun} active={filters.highContrast} onClick={() => setFilters({...filters, highContrast: !filters.highContrast})} colorClass="rose" />
+                    <FilterCard label="Remove Background" desc="Makes light gray backgrounds pure white." icon={ImageIcon} active={filters.removeBg} onClick={() => setFilters({...filters, removeBg: !filters.removeBg})} colorClass="amber" />
+                    <button onClick={() => setCurrentStep(4)} className="w-full mt-6 bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2">Confirm Filters <ChevronRight size={20} /></button>
+                </div>
+                <div className="lg:col-span-7 bg-slate-900 rounded-3xl border border-slate-800 p-8 flex flex-col items-center justify-center">
+                    <div className="relative w-full max-w-md aspect-[4/3] bg-slate-800 flex items-center justify-center rounded-lg overflow-hidden border border-slate-700">
+                        {pages.find(p => p.previewUrl) ? (
+                            <div className={`relative w-full h-full transition-all duration-500`} style={{ filter: `${filters.invert ? 'invert(1)' : ''} ${filters.grayscale ? 'grayscale(100%)' : ''} ${filters.highContrast ? 'contrast(130%)' : ''} ${filters.removeBg ? 'brightness(1.1) contrast(1.1)' : ''}` }}>
+                                <img src={pages.find(p => p.previewUrl).previewUrl} className={`w-full h-full object-contain ${filters.smartCrop ? 'scale-110 origin-center' : ''}`} alt="Preview" />
+                            </div>
+                        ) : <div className="text-slate-600">No Preview</div>}
+                    </div>
+                    <p className="mt-4 text-xs text-slate-500">Preview is approximate. Final PDF uses Ultra-HD processing.</p>
+                </div>
+            </div>
+        );
+
+        const renderLayout = (layout, setLayout, executeProcessing) => (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <div className="lg:col-span-5 space-y-8">
+                    <h3 className="text-2xl font-bold text-white">Page Layout</h3>
+                    <div className="bg-slate-900 rounded-xl p-5 border border-slate-800 space-y-4">
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm text-slate-300 font-semibold">Orientation</span>
+                            <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                                <button onClick={() => setLayout({...layout, orientation: 'portrait'})} className={`px-6 py-2 rounded-md text-xs font-bold transition-all ${layout.orientation === 'portrait' ? 'bg-violet-600 text-white shadow' : 'text-slate-500 hover:text-slate-300'}`}>Portrait</button>
+                                <button onClick={() => setLayout({...layout, orientation: 'landscape'})} className={`px-6 py-2 rounded-md text-xs font-bold transition-all ${layout.orientation === 'landscape' ? 'bg-violet-600 text-white shadow' : 'text-slate-500 hover:text-slate-300'}`}>Landscape</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <LayoutOption rows={1} cols={1} label="1 Slide" currentLayout={layout} onSelect={setLayout} />
+                        <LayoutOption rows={1} cols={2} label="2 Slides" currentLayout={layout} onSelect={setLayout} />
+                        <LayoutOption rows={2} cols={2} label="4 Slides" currentLayout={layout} onSelect={setLayout} />
+                        <LayoutOption rows={3} cols={2} label="6 Slides" currentLayout={layout} onSelect={setLayout} />
+                    </div>
+                    <button onClick={executeProcessing} className="w-full bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg flex items-center justify-center gap-2">Generate PDF <Printer size={20} /></button>
+                </div>
+                <div className="lg:col-span-7 bg-slate-950 rounded-3xl border border-slate-800 p-8 flex items-center justify-center">
+                    <div className="bg-white shadow-2xl relative transition-all duration-500" style={{ width: layout.orientation === 'portrait' ? '300px' : '424px', height: layout.orientation === 'portrait' ? '424px' : '300px', padding: '10px' }}>
+                        <div className="w-full h-full grid gap-1" style={{ gridTemplateColumns: `repeat(${layout.cols}, 1fr)`, gridTemplateRows: `repeat(${layout.rows}, 1fr)` }}>
+                            {Array.from({ length: layout.rows * layout.cols }).map((_, i) => (<div key={i} className="bg-slate-200 border border-slate-300"/>))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        const renderProcessing = (processingProgress) => {
+            const percent = processingProgress.total > 0 ? Math.round((processingProgress.current / processingProgress.total) * 100) : 0;
+            return (
+                <div className="flex flex-col items-center justify-center min-h-[500px] text-center max-w-lg mx-auto">
+                    <div className="relative w-48 h-48 mb-8">
+                        <svg className="w-full h-full transform -rotate-90">
+                            <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-800" />
+                            <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-violet-500 transition-all duration-300" strokeDasharray={552} strokeDashoffset={552 - (552 * percent) / 100} />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center"><span className="text-4xl font-bold text-white">{percent}%</span></div>
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Processing...</h3>
+                    <p className="text-slate-400">{processingProgress.status}</p>
+                </div>
+            );
+        };
+
+        const renderFinish = (finalPdfUrl, finalMeta) => (
+            <div className="max-w-xl mx-auto bg-slate-900/50 rounded-3xl p-8 border border-slate-800 text-center shadow-2xl">
+                <Check size={48} className="text-green-500 mx-auto mb-6" />
+                <h2 className="text-3xl font-bold text-white mb-2">Ready!</h2>
+                <div className="flex justify-center gap-8 mb-8 mt-4 text-sm text-slate-400">
+                    <div><span className="block text-white font-bold text-xl">{finalMeta.size} MB</span>Size</div>
+                    <div><span className="block text-white font-bold text-xl">{finalMeta.pages}</span>Pages</div>
+                </div>
+                <a href={finalPdfUrl} download={`AmarNotes_${new Date().toISOString().slice(0,10)}.pdf`} className="block w-full bg-violet-600 hover:bg-violet-700 text-white py-4 rounded-xl font-bold text-lg shadow-xl">Download PDF</a>
+                <button onClick={() => window.location.reload()} className="block w-full text-slate-500 hover:text-white mt-4 py-2">Process New File</button>
+            </div>
+        );
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<AmarNotes />);
+    </script>
+</body>
+</html>
